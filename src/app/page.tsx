@@ -18,10 +18,67 @@ import {
   UserIcon,
   SparklesIcon,
 } from "@heroicons/react/24/solid";
+import { Weather } from "./components/weather";
+import { Stock } from "./components/stock";
+import { Chart } from "./components/chart";
+import { CalendarEvent } from "./components/calendar";
 
 export default function Chat() {
   const { messages, input, handleInputChange, handleSubmit, isLoading } =
     useChat();
+
+  const renderToolInvocation = (toolInvocation: any) => {
+    const { toolName, args, result } = toolInvocation;
+
+    if (result) {
+      switch (toolName) {
+        case "displayWeather":
+          return (
+            <Weather
+              temperature={result.temperature}
+              location={result.location}
+              weather={result.condition}
+            />
+          );
+        case "getStockPrice":
+          return (
+            <Stock
+              symbol={result.symbol}
+              price={result.price}
+              change={result.change}
+              changePercent={result.changePercent}
+            />
+          );
+        case "generateChart":
+          return (
+            <Chart title={result.title} data={result.data} type={result.type} />
+          );
+        case "createCalendarEvent":
+          return (
+            <CalendarEvent
+              title={result.title}
+              date={result.date}
+              time={result.time}
+              description={result.description}
+            />
+          );
+        default:
+          return null;
+      }
+    } else {
+      return (
+        <div className="flex items-center gap-2 text-default-500">
+          <Spinner size="sm" />
+          <span className="text-sm">
+            {toolName === "weather" && "天気情報を取得中..."}
+            {toolName === "stock" && "株価情報を取得中..."}
+            {toolName === "chart" && "チャートを生成中..."}
+            {toolName === "calendar" && "カレンダーイベントを作成中..."}
+          </span>
+        </div>
+      );
+    }
+  };
 
   return (
     <div className="h-screen flex flex-col">
@@ -41,7 +98,7 @@ export default function Chat() {
                   GenUI Chat
                 </h1>
                 <p className="text-sm text-default-500">
-                  AI powered conversations
+                  AI powered conversations with Generative UI
                 </p>
               </div>
             </div>
@@ -66,11 +123,25 @@ export default function Chat() {
                 className="mb-4"
               />
               <h2 className="text-2xl font-bold text-foreground mb-2">
-                AIチャットへようこそ
+                Generative UIチャットへようこそ
               </h2>
               <p className="text-default-500 text-center max-w-md">
-                何でも聞いてください。最新のAI技術でお手伝いします！
+                天気、株価、チャート、カレンダーなど、動的なUIで情報を表示します！
               </p>
+              <div className="mt-6 grid grid-cols-2 gap-3 text-sm text-default-600">
+                <Chip variant="flat" color="primary">
+                  「東京の天気は？」
+                </Chip>
+                <Chip variant="flat" color="secondary">
+                  「Apple株価を教えて」
+                </Chip>
+                <Chip variant="flat" color="success">
+                  「売上チャートを作成」
+                </Chip>
+                <Chip variant="flat" color="warning">
+                  「会議を予定」
+                </Chip>
+              </div>
             </div>
           )}
 
@@ -91,32 +162,34 @@ export default function Chat() {
                   />
                 )}
 
-                <Card
-                  className={`max-w-[70%] ${
-                    message.role === "user" ? "bg-primary" : "bg-content1"
-                  }`}
-                  shadow="md"
-                >
-                  <CardBody className="px-4 py-3">
-                    {message.parts.map((part, i) => {
-                      switch (part.type) {
-                        case "text":
-                          return (
-                            <p
-                              key={`${message.id}-${i}`}
-                              className={`text-sm leading-relaxed ${
-                                message.role === "user"
-                                  ? "text-primary-foreground"
-                                  : "text-foreground"
-                              }`}
-                            >
-                              {part.text}
-                            </p>
-                          );
-                      }
-                    })}
-                  </CardBody>
-                </Card>
+                <div className="max-w-[70%] space-y-3">
+                  {message.content && (
+                    <Card
+                      className={`${
+                        message.role === "user" ? "bg-primary" : "bg-content1"
+                      }`}
+                      shadow="md"
+                    >
+                      <CardBody className="px-4 py-3">
+                        <p
+                          className={`text-sm leading-relaxed ${
+                            message.role === "user"
+                              ? "text-primary-foreground"
+                              : "text-foreground"
+                          }`}
+                        >
+                          {message.content}
+                        </p>
+                      </CardBody>
+                    </Card>
+                  )}
+
+                  {message.toolInvocations?.map((toolInvocation: any) => (
+                    <div key={toolInvocation.toolCallId}>
+                      {renderToolInvocation(toolInvocation)}
+                    </div>
+                  ))}
+                </div>
 
                 {message.role === "user" && (
                   <Avatar
@@ -164,7 +237,7 @@ export default function Chat() {
                 <Textarea
                   value={input}
                   onChange={handleInputChange}
-                  placeholder="メッセージを入力してください..."
+                  placeholder="メッセージを入力してください... (例: 東京の天気、Apple株価、売上チャート作成)"
                   variant="bordered"
                   size="lg"
                   minRows={1}
