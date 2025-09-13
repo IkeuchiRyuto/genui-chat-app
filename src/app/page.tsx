@@ -27,6 +27,61 @@ export default function Chat() {
   const { messages, input, handleInputChange, handleSubmit, isLoading } =
     useChat();
 
+  // AIローディングアニメーション用のロボットアスキーアート
+  const getRandomRobot = () => {
+    const robots = [
+      {
+        art: [
+          "　　┌─┐",
+          "　　│●│",
+          "　└─┼─┘",
+          "　　　│",
+          "　┌─┴─┐",
+          "　│ＡＩ│",
+          "　└───┘",
+        ],
+        message: "計算中...",
+      },
+      {
+        art: [
+          "　╔══╗",
+          "　║◉◉║",
+          "　╠══╣",
+          "　║▓▓║",
+          "　╚══╝",
+          "　 ╬╬",
+          "　┌──┐",
+        ],
+        message: "処理中...",
+      },
+      {
+        art: [
+          "　 ___",
+          "　[o_o]",
+          "　_|=|_",
+          "　　|||",
+          "　(___)",
+          "　Robot",
+          "　Mode",
+        ],
+        message: "思考中...",
+      },
+      {
+        art: [
+          "　　∧_∧",
+          "　 (  ･_･)",
+          "　  |つ▢と|",
+          "　 /　　　 \\",
+          "　(___AI___)",
+          "　　 ||||",
+          "　　 ||||",
+        ],
+        message: "分析中...",
+      },
+    ];
+    return robots[Math.floor(Math.random() * robots.length)];
+  };
+
   const renderToolInvocation = (toolInvocation: any) => {
     const { toolName, args, result } = toolInvocation;
 
@@ -67,14 +122,61 @@ export default function Chat() {
       }
     } else {
       return (
-        <div className="flex items-center gap-2 text-default-500">
-          <Spinner size="sm" />
-          <span className="text-sm">
-            {toolName === "weather" && "天気情報を取得中..."}
-            {toolName === "stock" && "株価情報を取得中..."}
-            {toolName === "chart" && "チャートを生成中..."}
-            {toolName === "calendar" && "カレンダーイベントを作成中..."}
-          </span>
+        <div className="flex items-start gap-2 text-default-500 bg-default-100 p-3 rounded-lg">
+          <div className="font-mono text-xs leading-tight animate-pulse">
+            {toolName === "displayWeather" && (
+              <>
+                <div>　 ╔══╗</div>
+                <div>　 ║☁☀║</div>
+                <div>　 ╚══╝</div>
+                <div>　 └─┘</div>
+                <div>天気チェック中...</div>
+              </>
+            )}
+            {toolName === "getStockPrice" && (
+              <>
+                <div>　┌─┐</div>
+                <div>　│$│</div>
+                <div>　└─┘</div>
+                <div>　╱ ╲</div>
+                <div>　BOT</div>
+                <div>株価取得中...</div>
+              </>
+            )}
+            {toolName === "generateChart" && (
+              <>
+                <div>　 ▓▓▓</div>
+                <div>　 ╟─┤</div>
+                <div>　 ╫█╫</div>
+                <div>　 ╚═╝</div>
+                <div>　CHART</div>
+                <div>グラフ作成中...</div>
+              </>
+            )}
+            {toolName === "createCalendarEvent" && (
+              <>
+                <div>　 ◎─◎</div>
+                <div>　 │📅│</div>
+                <div>　 └─┘</div>
+                <div>　 ╱╲</div>
+                <div>予定登録中...</div>
+              </>
+            )}
+          </div>
+          <div className="flex gap-1 mt-1">
+            <div
+              className="w-1 h-1 bg-primary rounded-full animate-ping"
+              style={{ animationDelay: "0ms" }}
+            ></div>
+            <div
+              className="w-1 h-1 bg-primary rounded-full animate-ping"
+              style={{ animationDelay: "200ms" }}
+            ></div>
+            <div
+              className="w-1 h-1 bg-primary rounded-full animate-ping"
+              style={{ animationDelay: "400ms" }}
+            ></div>
+          </div>
         </div>
       );
     }
@@ -212,11 +314,40 @@ export default function Chat() {
                 />
                 <Card className="bg-content1" shadow="md">
                   <CardBody className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <Spinner size="sm" color="primary" />
-                      <span className="text-sm text-default-600">
-                        AIが考えています...
-                      </span>
+                    <div className="flex items-start gap-3">
+                      <div className="flex flex-col items-center">
+                        {(() => {
+                          const robot = getRandomRobot();
+                          return (
+                            <>
+                              <div className="font-mono text-xs leading-tight text-default-600 animate-pulse">
+                                {robot.art.map((line, index) => (
+                                  <div key={index}>{line}</div>
+                                ))}
+                              </div>
+                              <div className="text-xs text-default-500 mt-1 animate-bounce">
+                                {robot.message}
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                      <div className="flex items-center gap-2 ml-2">
+                        <div className="flex gap-1">
+                          <div
+                            className="w-1 h-1 bg-primary rounded-full animate-bounce"
+                            style={{ animationDelay: "0ms" }}
+                          ></div>
+                          <div
+                            className="w-1 h-1 bg-primary rounded-full animate-bounce"
+                            style={{ animationDelay: "150ms" }}
+                          ></div>
+                          <div
+                            className="w-1 h-1 bg-primary rounded-full animate-bounce"
+                            style={{ animationDelay: "300ms" }}
+                          ></div>
+                        </div>
+                      </div>
                     </div>
                   </CardBody>
                 </Card>
