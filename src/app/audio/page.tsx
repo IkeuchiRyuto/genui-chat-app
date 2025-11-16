@@ -6,6 +6,13 @@ export default function AudioPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [audioChunks, setAudioChunks] = useState<Int16Array[]>([]);
   const [status, setStatus] = useState("待機中");
+  const [enableNoiseReduction, setEnableNoiseReduction] = useState(true);
+  const [noiseGateThreshold, setNoiseGateThreshold] = useState(0.02);
+
+  // ブラウザ標準のエコーキャンセレーション設定
+  const [enableEchoCancellation, setEnableEchoCancellation] = useState(true);
+  const [enableNoiseSuppression, setEnableNoiseSuppression] = useState(true);
+  const [enableAutoGainControl, setEnableAutoGainControl] = useState(true);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
@@ -32,6 +39,9 @@ export default function AudioPage() {
         audio: {
           channelCount: 1,
           sampleRate: 48000,
+          echoCancellation: enableEchoCancellation,
+          noiseSuppression: enableNoiseSuppression,
+          autoGainControl: enableAutoGainControl,
         },
       });
       streamRef.current = stream;
@@ -54,7 +64,10 @@ export default function AudioPage() {
       workletNode.port.onmessage = (event) => {
         if (event.data.type === "audioData") {
           audioBufferRef.current.push(event.data.pcm16);
-          setStatus(`録音中... (RMS: ${event.data.rms.toFixed(4)})`);
+          const filterStatus = event.data.filtered ? " [フィルター有効]" : "";
+          setStatus(
+            `録音中... (RMS: ${event.data.rms.toFixed(4)})${filterStatus}`,
+          );
         } else if (event.data.type === "silence") {
           setStatus("録音中... (無音)");
         }
@@ -63,8 +76,16 @@ export default function AudioPage() {
       source.connect(workletNode);
       workletNode.connect(audioContext.destination);
 
-      // 録音開始を通知
+      // 録音開始とノイズ除去設定を通知
       workletNode.port.postMessage({ type: "setRecording", value: true });
+      workletNode.port.postMessage({
+        type: "setNoiseReduction",
+        value: enableNoiseReduction,
+      });
+      workletNode.port.postMessage({
+        type: "setNoiseGateThreshold",
+        value: noiseGateThreshold,
+      });
 
       setIsRecording(true);
       setStatus("録音中...");
@@ -131,8 +152,12 @@ export default function AudioPage() {
     }
 
     // AudioContextで再生
-    const playContext = new AudioContext({ sampleRate: 24000 }); // 録音時に24kHzにリサンプリングされている
-    const audioBuffer = playContext.createBuffer(1, floatBuffer.length, 24000);
+    const playContext = new AudioContext({ sampleRate: 24000 });
+    const audioBuffer = playContext.createBuffer(
+      1,
+      floatBuffer.length,
+      24000,
+    );
     audioBuffer.copyToChannel(floatBuffer, 0);
 
     const source = playContext.createBufferSource();
@@ -166,6 +191,144 @@ export default function AudioPage() {
               録音データ: {audioChunks.length} チャンク
             </p>
           )}
+        </div>
+
+        {/* ノイズ除去設定 */}
+        <div className="mb-6 p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">
+            🎚️ ノイズ除去設定
+          </h3>
+
+          <div className="flex items-center justify-between mb-3">
+            <label className="text-sm text-gray-700 dark:text-gray-300">
+              バンドパスフィルター (300-3400Hz)
+            </label>
+            <button
+              onClick={() => setEnableNoiseReduction(!enableNoiseReduction)}
+              disabled={isRecording}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                enableNoiseReduction
+                  ? "bg-green-500 text-white hover:bg-green-600"
+                  : "bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-400 dark:hover:bg-gray-500"
+              } ${
+                isRecording ? "opacity-50 cursor-not-allowed" : ""
+              }`}
+            >
+              {enableNoiseReduction ? "ON" : "OFF"}
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm text-gray-700 dark:text-gray-300 block">
+              ノイズゲート閾値: {noiseGateThreshold.toFixed(3)}
+            </label>
+            <input
+              type="range"
+              min="0.005"
+              max="0.1"
+              step="0.005"
+              value={noiseGateThreshold}
+              onChange={(e) =>
+                setNoiseGateThreshold(parseFloat(e.target.value))
+              }
+              disabled={isRecording || !enableNoiseReduction}
+              className="w-full h-2 bg-gray-300 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer disabled:opacity-50"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              低い値: より敏感（小さな音も録音） / 高い値: よりノイズカット
+            </p>
+          </div>
+        </div>
+
+        {/* ブラウザ標準の音声処理 */}
+        <div className="mb-6 p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">
+            🔊 エコー・機械音除去設定
+          </h3>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="text-sm text-gray-700 dark:text-gray-300 font-medium">
+                  エコーキャンセレーション
+                </label>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  スピーカーからの音を除去
+                </p>
+              </div>
+              <button
+                onClick={() =>
+                  setEnableEchoCancellation(!enableEchoCancellation)
+                }
+                disabled={isRecording}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  enableEchoCancellation
+                    ? "bg-green-500 text-white hover:bg-green-600"
+                    : "bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-400 dark:hover:bg-gray-500"
+                } ${
+                  isRecording
+                    ? "opacity-50 cursor-not-allowed"
+                    : ""
+                }`}
+              >
+                {enableEchoCancellation ? "ON" : "OFF"}
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="text-sm text-gray-700 dark:text-gray-300 font-medium">
+                  ノイズサプレッション
+                </label>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  環境ノイズを自動除去
+                </p>
+              </div>
+              <button
+                onClick={() =>
+                  setEnableNoiseSuppression(!enableNoiseSuppression)
+                }
+                disabled={isRecording}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  enableNoiseSuppression
+                    ? "bg-green-500 text-white hover:bg-green-600"
+                    : "bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-400 dark:hover:bg-gray-500"
+                } ${
+                  isRecording
+                    ? "opacity-50 cursor-not-allowed"
+                    : ""
+                }`}
+              >
+                {enableNoiseSuppression ? "ON" : "OFF"}
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="text-sm text-gray-700 dark:text-gray-300 font-medium">
+                  自動ゲインコントロール
+                </label>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  音量を自動調整
+                </p>
+              </div>
+              <button
+                onClick={() => setEnableAutoGainControl(!enableAutoGainControl)}
+                disabled={isRecording}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  enableAutoGainControl
+                    ? "bg-green-500 text-white hover:bg-green-600"
+                    : "bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-400 dark:hover:bg-gray-500"
+                } ${
+                  isRecording
+                    ? "opacity-50 cursor-not-allowed"
+                    : ""
+                }`}
+              >
+                {enableAutoGainControl ? "ON" : "OFF"}
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="space-y-4">
